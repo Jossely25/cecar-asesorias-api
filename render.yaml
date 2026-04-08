@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: cecar-asesorias-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:aplicacion
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: CLAVE_API
+        value: CECAR-DEMO-KEY
+      - key: MAKE_WEBHOOK_EVENTOS
+        sync: false
