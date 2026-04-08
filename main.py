@@ -3,6 +3,7 @@ from datetime import datetime
 import uuid
 import os
 import json
+import time
 from urllib.request import Request, urlopen
 
 aplicacion = Flask(__name__)
@@ -74,23 +75,29 @@ def parsear_fecha_iso(valor: str):
 def enviar_evento_a_make(evento: dict):
     if not MAKE_WEBHOOK_EVENTOS:
         print("MAKE_WEBHOOK_EVENTOS no está configurado")
-        return
+        return False
 
     try:
         data = json.dumps(evento, ensure_ascii=False).encode("utf-8")
         req = Request(
             MAKE_WEBHOOK_EVENTOS,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Connection": "close"
+            },
             method="POST"
         )
-        urlopen(req, timeout=8).read()
-        print(f"Evento enviado a Make: {evento['tipo_evento']} - {evento['id_evento']}")
+        respuesta = urlopen(req, timeout=30)
+        codigo = getattr(respuesta, "status", 200)
+        print(f"Evento enviado a Make: {evento['tipo_evento']} - {evento['id_evento']} - HTTP {codigo}")
+        return True
     except Exception as e:
-        print("Error enviando evento a Make:", str(e))
+        print(f"Error enviando evento a Make [{evento['tipo_evento']} - {evento['id_evento']}]: {str(e)}")
+        return False
 
 
-def registrar_evento(tipo_evento: str, solicitud_id: str, datos=None):
+def registrar_evento(tipo_evento: str, solicitud_id: str, datos=None, pausar=False):
     evento = {
         "id_evento": generar_id("EVT"),
         "tipo_evento": tipo_evento,
@@ -102,6 +109,10 @@ def registrar_evento(tipo_evento: str, solicitud_id: str, datos=None):
     }
     EVENTOS.append(evento)
     enviar_evento_a_make(evento)
+
+    if pausar:
+        time.sleep(1.2)
+
     return evento
 
 
@@ -273,7 +284,8 @@ def crear_solicitud():
             "descripcion_duda": solicitud["descripcion_duda"],
             "nivel_urgencia": solicitud["nivel_urgencia"],
             "estado": solicitud["estado"]
-        }
+        },
+        pausar=True
     )
 
     evento_clasificada = registrar_evento(
@@ -287,7 +299,8 @@ def crear_solicitud():
             "clasificacion": solicitud["clasificacion"],
             "razones": solicitud["razones_clasificacion"],
             "estado": solicitud["estado"]
-        }
+        },
+        pausar=True
     )
 
     evento_adicional = None
@@ -303,7 +316,8 @@ def crear_solicitud():
                 "nivel_urgencia": solicitud["nivel_urgencia"],
                 "motivo": "La solicitud fue clasificada como compleja",
                 "clasificacion": solicitud["clasificacion"]
-            }
+            },
+            pausar=False
         )
 
     eventos_generados = [evento_creada, evento_clasificada]
@@ -442,40 +456,6 @@ def programar_asesoria():
         "solicitud_actualizada": solicitud,
         "evento_generado": evento
     }), 201
-
-
-@aplicacion.get("/api/v1/solicitudes")
-def listar_solicitudes():
-    if not validar_api_key():
-        return respuesta_error(401, "NO_AUTORIZADO", "Falta X-API-key o es incorrecta")
-
-    return jsonify({
-        "ok": True,
-        "total": len(SOLICITUDES),
-        "solicitudes": SOLICITUDES
-    })
-
-
-@aplicacion.get("/api/v1/solicitudes/<solicitud_id>")
-def obtener_solicitud(solicitud_id):
-    if not validar_api_key():
-        return respuesta_error(401, "NO_AUTORIZADO", "Falta X-API-key o es incorrecta")
-
-    solicitud = buscar_solicitud(solicitud_id)
-    if not solicitud:
-        return respuesta_error(404, "NO_ENCONTRADA", "La solicitud indicada no existe")
-
-    eventos = [e for e in EVENTOS if e["solicitud_id"] == solicitud_id]
-    respuesta = next((r for r in RESPUESTAS_DIRECTAS if r["solicitud_id"] == solicitud_id), None)
-    asesoria = next((a for a in ASESORIAS if a["solicitud_id"] == solicitud_id), None)
-
-    return jsonify({
-        "ok": True,
-        "solicitud": solicitud,
-        "eventos": eventos,
-        "respuesta_directa": respuesta,
-        "asesoria": asesoria
-    })
 
 
 @aplicacion.get("/api/v1/eventos")
