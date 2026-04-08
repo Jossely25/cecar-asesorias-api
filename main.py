@@ -26,11 +26,19 @@ PALABRAS_COMPLEJAS = {
     "taller",
     "proyecto",
     "asesoria",
+    "asesoría",
     "tema completo",
     "varios puntos",
     "muchas dudas",
     "repaso",
-    "sustentacion"
+    "sustentacion",
+    "sustentación",
+    "integracion",
+    "integración",
+    "webhooks",
+    "eventos",
+    "google sheets",
+    "arquitectura"
 }
 
 
@@ -51,12 +59,9 @@ def respuesta_error(codigo_http, codigo_error, mensaje, detalles=None):
     }), codigo_http
 
 
-def obtener_api_key():
-    return request.headers.get("X-API-key", "").strip()
-
-
 def validar_api_key():
-    return obtener_api_key() == CLAVE_API
+    clave_recibida = request.headers.get("X-API-key", "").strip()
+    return clave_recibida == CLAVE_API
 
 
 def parsear_fecha_iso(valor: str):
@@ -68,6 +73,7 @@ def parsear_fecha_iso(valor: str):
 
 def enviar_evento_a_make(evento: dict):
     if not MAKE_WEBHOOK_EVENTOS:
+        print("MAKE_WEBHOOK_EVENTOS no está configurado")
         return
 
     try:
@@ -79,6 +85,7 @@ def enviar_evento_a_make(evento: dict):
             method="POST"
         )
         urlopen(req, timeout=8).read()
+        print(f"Evento enviado a Make: {evento['tipo_evento']} - {evento['id_evento']}")
     except Exception as e:
         print("Error enviando evento a Make:", str(e))
 
@@ -118,7 +125,7 @@ def validar_solicitud(datos: dict):
         if campo not in datos:
             return False, f"Falta el campo obligatorio: {campo}"
 
-    for campo in ["nombre_estudiante", "curso", "tema", "descripcion_duda", "nivel_urgencia"]:
+    for campo in campos_obligatorios:
         if not isinstance(datos[campo], str) or not datos[campo].strip():
             return False, f"{campo} debe ser texto no vacío"
 
@@ -160,7 +167,7 @@ def validar_asesoria(datos: dict):
         if campo not in datos:
             return False, f"Falta el campo obligatorio: {campo}"
 
-    for campo in ["solicitud_id", "docente", "fecha_hora", "medio"]:
+    for campo in campos_obligatorios:
         if not isinstance(datos[campo], str) or not datos[campo].strip():
             return False, f"{campo} debe ser texto no vacío"
 
@@ -170,7 +177,7 @@ def validar_asesoria(datos: dict):
 
     fecha = parsear_fecha_iso(datos["fecha_hora"].strip())
     if fecha is None:
-        return False, "fecha_hora debe estar en formato ISO, por ejemplo 2026-04-08T18:30:00"
+        return False, "fecha_hora debe estar en formato ISO. Ejemplo: 2026-04-10T18:30:00"
 
     if "enlace" in datos and not isinstance(datos["enlace"], str):
         return False, "enlace debe ser texto"
@@ -214,6 +221,7 @@ def inicio():
         "servicio": "Sistema Inteligente de Atención y Asesorías Académicas - CECAR",
         "estado": "ok",
         "autenticacion": "Usar header X-API-key",
+        "webhook_make_configurado": bool(MAKE_WEBHOOK_EVENTOS),
         "endpoints": [
             "POST /api/v1/solicitudes",
             "POST /api/v1/respuestas-directas",
@@ -276,8 +284,8 @@ def crear_solicitud():
             "correo_estudiante": solicitud["correo_estudiante"],
             "curso": solicitud["curso"],
             "tema": solicitud["tema"],
-            "clasificacion": clasificacion,
-            "razones": razones,
+            "clasificacion": solicitud["clasificacion"],
+            "razones": solicitud["razones_clasificacion"],
             "estado": solicitud["estado"]
         }
     )
@@ -293,18 +301,19 @@ def crear_solicitud():
                 "curso": solicitud["curso"],
                 "tema": solicitud["tema"],
                 "nivel_urgencia": solicitud["nivel_urgencia"],
-                "motivo": "La solicitud fue clasificada como compleja"
+                "motivo": "La solicitud fue clasificada como compleja",
+                "clasificacion": solicitud["clasificacion"]
             }
         )
+
+    eventos_generados = [evento_creada, evento_clasificada]
+    if evento_adicional:
+        eventos_generados.append(evento_adicional)
 
     return jsonify({
         "ok": True,
         "solicitud": solicitud,
-        "eventos_generados": [
-            evento_creada,
-            evento_clasificada,
-            *([evento_adicional] if evento_adicional else [])
-        ],
+        "eventos_generados": eventos_generados,
         "conteo_solicitudes": len(SOLICITUDES)
     }), 201
 
@@ -342,6 +351,7 @@ def enviar_respuesta_directa():
     }
 
     RESPUESTAS_DIRECTAS.append(respuesta)
+
     solicitud["estado"] = "RESPONDIDA"
     solicitud["respuesta_directa_id"] = respuesta["id_respuesta"]
 
@@ -355,7 +365,9 @@ def enviar_respuesta_directa():
             "nombre_estudiante": solicitud["nombre_estudiante"],
             "correo_estudiante": solicitud["correo_estudiante"],
             "curso": solicitud["curso"],
-            "tema": solicitud["tema"]
+            "tema": solicitud["tema"],
+            "clasificacion": solicitud["clasificacion"],
+            "estado": solicitud["estado"]
         }
     )
 
@@ -402,6 +414,7 @@ def programar_asesoria():
     }
 
     ASESORIAS.append(asesoria)
+
     solicitud["estado"] = "ASESORIA_PROGRAMADA"
     solicitud["asesoria_id"] = asesoria["id_asesoria"]
 
@@ -417,7 +430,9 @@ def programar_asesoria():
             "nombre_estudiante": solicitud["nombre_estudiante"],
             "correo_estudiante": solicitud["correo_estudiante"],
             "curso": solicitud["curso"],
-            "tema": solicitud["tema"]
+            "tema": solicitud["tema"],
+            "clasificacion": solicitud["clasificacion"],
+            "estado": solicitud["estado"]
         }
     )
 
