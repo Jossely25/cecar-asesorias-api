@@ -89,6 +89,8 @@ def registrar_evento(tipo_evento: str, solicitud_id: str, datos=None):
         "tipo_evento": tipo_evento,
         "timestamp": ahora_iso(),
         "solicitud_id": solicitud_id,
+        "origen": "api_flask_render",
+        "version_evento": "1.0",
         "datos": datos or {}
     }
     EVENTOS.append(evento)
@@ -256,9 +258,13 @@ def crear_solicitud():
         "solicitud_creada",
         solicitud["id_solicitud"],
         {
+            "nombre_estudiante": solicitud["nombre_estudiante"],
+            "correo_estudiante": solicitud["correo_estudiante"],
             "curso": solicitud["curso"],
             "tema": solicitud["tema"],
-            "nivel_urgencia": solicitud["nivel_urgencia"]
+            "descripcion_duda": solicitud["descripcion_duda"],
+            "nivel_urgencia": solicitud["nivel_urgencia"],
+            "estado": solicitud["estado"]
         }
     )
 
@@ -266,8 +272,13 @@ def crear_solicitud():
         "solicitud_clasificada",
         solicitud["id_solicitud"],
         {
+            "nombre_estudiante": solicitud["nombre_estudiante"],
+            "correo_estudiante": solicitud["correo_estudiante"],
+            "curso": solicitud["curso"],
+            "tema": solicitud["tema"],
             "clasificacion": clasificacion,
-            "razones": razones
+            "razones": razones,
+            "estado": solicitud["estado"]
         }
     )
 
@@ -277,6 +288,11 @@ def crear_solicitud():
             "requiere_asesoria",
             solicitud["id_solicitud"],
             {
+                "nombre_estudiante": solicitud["nombre_estudiante"],
+                "correo_estudiante": solicitud["correo_estudiante"],
+                "curso": solicitud["curso"],
+                "tema": solicitud["tema"],
+                "nivel_urgencia": solicitud["nivel_urgencia"],
                 "motivo": "La solicitud fue clasificada como compleja"
             }
         )
@@ -334,7 +350,12 @@ def enviar_respuesta_directa():
         solicitud["id_solicitud"],
         {
             "id_respuesta": respuesta["id_respuesta"],
-            "docente": respuesta["docente"]
+            "docente": respuesta["docente"],
+            "mensaje": respuesta["mensaje"],
+            "nombre_estudiante": solicitud["nombre_estudiante"],
+            "correo_estudiante": solicitud["correo_estudiante"],
+            "curso": solicitud["curso"],
+            "tema": solicitud["tema"]
         }
     )
 
@@ -391,7 +412,12 @@ def programar_asesoria():
             "id_asesoria": asesoria["id_asesoria"],
             "docente": asesoria["docente"],
             "fecha_hora": asesoria["fecha_hora"],
-            "medio": asesoria["medio"]
+            "medio": asesoria["medio"],
+            "enlace": asesoria["enlace"],
+            "nombre_estudiante": solicitud["nombre_estudiante"],
+            "correo_estudiante": solicitud["correo_estudiante"],
+            "curso": solicitud["curso"],
+            "tema": solicitud["tema"]
         }
     )
 
